@@ -1,78 +1,252 @@
-<p align="center"><img src="https://res.cloudinary.com/dtfbvvkyp/image/upload/v1566331377/laravel-logolockup-cmyk-red.svg" width="400"></p>
+# Routing Calls to Third Party Agents with Twilio Voice
 
-<p align="center">
-<a href="https://travis-ci.org/laravel/framework"><img src="https://travis-ci.org/laravel/framework.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://poser.pugx.org/laravel/framework/d/total.svg" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://poser.pugx.org/laravel/framework/v/stable.svg" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://poser.pugx.org/laravel/framework/license.svg" alt="License"></a>
-</p>
+Often at times when running a business, you might have different departments handling specific cases. These departments can't always have a dedicated support line that is accessible directly from the public as you might have put various automated troubleshooting options in place to help your customers and also reduce spamming. But most time your customers might need to speak directly with a human agent and there's no better way to do this than easily linking the customer directly to an available agent while their call is still active.
 
-## About Laravel
+In this tutorial, you will learn how to make use of the [Twilio Voice](https://www.twilio.com/voice) API to route calls to other third party phone numbers right within an active call.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Prerequisites
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+To  follow through with this tutorial, you will need the following:
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- Basic knowledge of Laravel
+- [Laravel](https://laravel.com/docs/master) Installed on your local machine
+- [Composer](https://getcomposer.org/) globally installed
+- [Twilio Account](https://www.twilio.com/referral/B2YAW1)
 
-## Learning Laravel
+## Project Setup
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+Laravel will be used for this tutorial. To start a new Laravel project using the Laravel installer, open up your terminal and run the following command:
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains over 1500 video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+    $ laravel new twilio-voice-route
+    $ cd twilio-voice-route
 
-## Laravel Sponsors
+The above commands will generate a new Laravel project and also point your terminal to the project directory using the `cd` command.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the Laravel [Patreon page](https://patreon.com/taylorotwell).
+Next, to enable you to communicate with the Twilio API more effectively, you will need the [Twilio PHP SDK](https://www.twilio.com/docs/libraries/php). Run the following command to have it installed via composer:
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Cubet Techno Labs](https://cubettech.com)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[British Software Development](https://www.britishsoftware.co)**
-- **[Webdock, Fast VPS Hosting](https://www.webdock.io/en)**
-- **[DevSquad](https://devsquad.com)**
-- [UserInsights](https://userinsights.com)
-- [Fragrantica](https://www.fragrantica.com)
-- [SOFTonSOFA](https://softonsofa.com/)
-- [User10](https://user10.com)
-- [Soumettre.fr](https://soumettre.fr/)
-- [CodeBrisk](https://codebrisk.com)
-- [1Forge](https://1forge.com)
-- [TECPRESSO](https://tecpresso.co.jp/)
-- [Runtime Converter](http://runtimeconverter.com/)
-- [WebL'Agence](https://weblagence.com/)
-- [Invoice Ninja](https://www.invoiceninja.com)
-- [iMi digital](https://www.imi-digital.de/)
-- [Earthlink](https://www.earthlink.ro/)
-- [Steadfast Collective](https://steadfastcollective.com/)
-- [We Are The Robots Inc.](https://watr.mx/)
-- [Understand.io](https://www.understand.io/)
-- [Abdel Elrafa](https://abdelelrafa.com)
-- [Hyper Host](https://hyper.host)
-- [Appoly](https://www.appoly.co.uk)
-- [OP.GG](https://op.gg)
+    $ composer require twilio/sdk
 
-## Contributing
+## Handling Incoming Call Requests
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Whenever a new incoming call request is made to your [Twilio number](https://www.twilio.com/console/phone-numbers/incoming), Twilio makes a GET or POST request to a webhook specified by you for the phone number. This webhook is what Twilio uses to carry out actions whenever a call is made to your Twilio number. Using the [TwiMl](https://www.twilio.com/docs/voice/twiml) you can specify different actions you want to happen whenever a call comes in like playing an MP3 message or doing more complex activities like getting the user input. For this tutorial, we will make use of the [*Gather*](https://www.twilio.com/docs/voice/twiml/gather) and [*Dial*](https://www.twilio.com/docs/voice/twiml/dial) verbs. The *Gather* verb is used for getting the user input during an ongoing call while the *Dial* verb is used to place a call to a third party during an ongoing call.
 
-## Code of Conduct
+Normally, the [TwiMl](https://www.twilio.com/docs/voice/twiml) is written in [XML](https://en.wikipedia.org/wiki/XML) but thanks to the Twilio/SDK package, you can make use of more fluent methods to generate the needed XML without actually writing raw XML yourself and this really makes working with Twilio voice even easier. 
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+To get started writing out the application logic, first, you will need to generate a controller that will house the handler methods. To do this, open up a terminal in the project directory and run the following command:
 
-## Security Vulnerabilities
+    $ php artisan make:controller CallController
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Next, open the newly created file (`app/Http/Controllers/CallController.php`) and make the following changes:
 
-## License
+    <?php
+    
+    namespace App\Http\Controllers;
+    
+    use Illuminate\Foundation\Inspiring;
+    use Illuminate\Http\Request;
+    use Twilio\TwiML\VoiceResponse;
+    
+    class CallController extends Controller
+    {
+        public function handleIncomingCall()
+        {
+            $response = new VoiceResponse();
+            $gather = $response->gather(array('numDigits' => 1, 'action' => url('api/action')));
+            $gather->say('Welcome.');
+            $gather->say('For support, press 1. For Inspirational message, press 2.');
+            $response->redirect(url('api/call'));
+            return $response;
+    
+        }
+    
+        public function handleUserInput(Request $request)
+        {
+            $response = new VoiceResponse();
+            $userInput = $request->input('Digits');
+            if (isset($userInput)) {
+                switch ($userInput) {
+                    case 1:
+                        $response->say('You will now be transferred to an online  customer support. Please stay on the line!');
+                        $response->dial('THIRD PARTY NUMBER'); //pass in phone number to dial
+                        break;
+                    case 2:
+                        $response->say(Inspiring::quote());
+                        $response->say('Hope you have been inspired to keep pushing! Good bye.');
+                        break;
+                    default:
+                        $response->say('Invalid number entered!');
+                        $response->redirect(url('api/call'));
+                }
+            } else {
+                $response->redirect(url('api/call'));
+            }
+    
+            return $response;
+        }
+    }
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Now, let's take a closer look at the code above. Two methods have been added to the class, each with a specific use case. The `handleIncomingCall()` method makes use of the `VoiceResponse()` class from the Twilio SDK to construct the TwiMl response when a call comes in. The `gather()` method from the `VoiceResponse` instance is used to construct a *Gather* verb. It takes in an optional argument of an associative array containing several possible [attributes](https://www.twilio.com/docs/voice/twiml/gather#gather-attributes) which will modify how the *Gather* verb will behave:
+
+     $gather = $response->gather(array('action' => url('api/action'),'numDigits' => 1));
+
+In this case, the `action` and `numDigits` attributes are passed in as elements in the array. The `action` value should be a valid URL which will be called by Twilio after a user finishes inputting a value while the `numDigits` attribute takes in a number to indicate the maximum number of characters to accept before the URL set in the `action` attribute gets called.
+
+**NOTE:** 
+
+- The Laravel `[url()](https://laravel.com/docs/7.x/helpers#method-url)` helper method is used to generate the full URL for the path *api/action* which will be created in the latter part of the tutorial.
+- If the `action` is not present in the options array, Twilio will make use of the current URL path as the default value.
+
+Next, a [Say](https://www.twilio.com/docs/voice/twiml/say) verb is nested in the *Gather* verb which reads out the allowed digits and their respective actions to the caller:
+
+     $gather->say('Welcome.');
+     $gather->say('For support, press 1. For Inspirational message, press 2.');
+
+Next, a [Redirect](https://www.twilio.com/docs/voice/twiml/redirect) verb is used as a fallback loop to prevent the call from hanging up if the user fails to input a value within 5 seconds of silence which is the waiting period where the *Gather* verb expects a input from the user:
+
+     $response->redirect(url('api/call'));
+
+**NOTE:**
+
+- The `redirect()` method takes in the complete URL. In this case, the URL to this method is passed in.
+- This line of code will not be executed if the user enters a value within the 5 seconds wait period as the value entered by the user will be sent via an HTTP call made by Twilio to the `action` URL provided as an attribute on the `gather()` method.
+- The *Redirect* verb can not be nested hence it is added to the main `$response` object.
+
+After successfully using the `VoiceResponse` instance from the Twilio SDK to construct the TwiMl response (`$response`), the generated XML which will be returned to Twilio will look like this:
+
+    <?xml version="1.0" encoding="UTF-8"?>
+    <Response>
+        <Gather numDigits="1" action="http://twilio-voice-route.test/api/action">
+            <Say>Welcome.</Say>
+            <Say>For support, press 1. For Inspirational message, press 2.</Say>
+        </Gather>
+        <Redirect>http://twilio-voice-route.test/api/call</Redirect>
+    </Response> 
+
+Finally, the `$response` object is returned as a response to the client - in this case Twilio.
+
+The `handleUserInput()` method takes in a [Request](https://laravel.com/docs/7.x/requests#accessing-the-request) instance which is injected by the Laravel [service container](https://laravel.com/docs/7.x/container). First, a new `VoiceResponse()` is instantiated - `$response`, next the value typed in by the user, is gotten from the *request* body as the *Digits* property which is sent by Twilio when the `action` URL is called:
+
+      $response = new VoiceResponse();
+      $userInput = $request->input('Digits');
+
+Next, check if the `$userInput` is not *null* or *undefined* before proceeding to take action depending on the value gotten:
+
+    if (isset($userInput)) {
+                switch ($userInput) {
+                    case 1:
+                        $response->say('You will now be transferred to an online  customer support. Please stay on the line!');
+                        $response->dial('THIRD PARTY NUMBER'); //pass in phone number to dial
+                        break;
+                    case 2:
+                        $response->say(Inspiring::quote());
+                        $response->say('Hope you have been inspired to keep pushing! Good bye.');
+                        break;
+                    default:
+                        $response->say('Invalid number entered!');
+                        $response->redirect(url('api/call'));
+                }
+     } else {
+               $response->redirect(url('api/call'));
+     }
+
+Using a [switch](https://www.php.net/manual/en/control-structures.switch.php) statement, a different TwiMl response is constructed depending on the number entered by the user.  When the value/case equals to `1`, a [Say](https://www.twilio.com/docs/voice/twiml/say) verb is used to tell the user s/he is being transferred to a third party customer care agent and this is followed by a [Dial](https://www.twilio.com/docs/voice/twiml/dial) verb:
+
+     case 1:
+         $response->say('You will now be transferred to an online customer support. Please stay on the line!');
+         $response->dial('THIRD PARTY NUMBER'); //pass in phone number to dial
+         break; 
+
+The `dial()` method which is used to construct a Dial verb takes in the phone number of the third party you want to link the current caller to. 
+
+**NOTE:** 
+
+- Any further instruction below the Dial verb will only get executed after either side hangs up.
+- If any error occurs when trying to place a call to the phone number provided the new call will end instantly and flow will be returned to your application.
+
+Next, when the case equals to `2`, a Say verb is used to read out an inspirational message to the caller. The inspirational message is gotten from the `Illuminate\Foundation\Inspiring` class which is also used for the in-built [artisan](https://laravel.com/docs/7.x/artisan) `inspire` command. This is followed by a conclusion message before the call is ended:
+
+     case 2:
+          $response->say(Inspiring::quote());
+          $response->say('Hope you have been inspired to keep pushing! Good bye.');
+          break;
+
+And lastly, if the value entered by the user doesn't equal either of the allowed values a *default* case is used to handle the situation:
+
+    default:
+          $response->say('Invalid number entered!');
+          $response->redirect(url('api/call'));
+
+The user is told about their input being invalid and then using the *[Redirect](https://www.twilio.com/docs/voice/twiml/redirect)* verb the user is taken back to the initial starting point of the call so they can re-enter their selection.
+
+Just like, before the constructed `$response` object is returned as a response to the client.
+
+## Registering Routes
+
+Now that the application logic has been written out, you have to create routes that will be used to access the method in the `CallController`. Open up `routes/api.php` and replace the content with the following:
+
+    <?php
+    
+    use Illuminate\Http\Request;
+    use Twilio\TwiML\VoiceResponse;
+    use Illuminate\Support\Facades\Route;
+    
+    /*
+    |--------------------------------------------------------------------------
+    | API Routes
+    |--------------------------------------------------------------------------
+    |
+    | Here is where you can register API routes for your application. These
+    | routes are loaded by the RouteServiceProvider within a group which
+    | is assigned the "api" middleware group. Enjoy building your API!
+    |
+     */
+    
+    Route::post('/call', 'CallController@handleIncomingCall');
+    Route::post('/action', 'CallController@handleUserInput');
+
+**NOTE:** *routes added to this `routes/api.php` class will be prefixed with `/api`*
+
+## Updating Webhooks Settings
+
+Next, to allow Twilio to gain access to your application, you need to update your active phone number webhook settings from your Twilio dashboard. But before you can do that, your application needs to be accessible from the web. Fortunately, [ngrok](https://ngrok.com/) allows us to do just that.
+
+### Exposing the application
+
+First, start by running your Laravel application. Open up your terminal and run the following commands to start your Laravel application:
+
+    $ php artisan serve
+
+This will get your Laravel application running on your local machine on a specific port which will be printed out to the terminal after successfully executing the command. Next, open up another instance of your terminal and run this command to make your application publicly accessible:
+
+    $ ngrok http 8000
+
+**NOTE:** 
+
+- If you don’t have [ngrok](https://ngrok.com/) set up on your computer, you can see how to do so by following the instructions on their [official download page](https://ngrok.com/download).
+- *Replace `8000` with the port your application is running on.*
+
+After successful execution of the above command, you should see a screen like this:
+
+![https://res.cloudinary.com/brianiyoha/image/upload/v1583284629/Articles%20sample/ngrok-screenshot.png](https://res.cloudinary.com/brianiyoha/image/upload/v1583284629/Articles%20sample/ngrok-screenshot.png)
+
+Take note of the `forwarding url` as we will be making use of it next.
+
+### Updating phone number webhook
+
+Now head over to the [active phone number](https://www.twilio.com/console/phone-numbers/incoming) section on your Twilio console and select your active phone number from the list which will be used as the phone number for receiving incoming calls. Scroll  down to the *Voice & Fax* section and update the webhook URL with `{forwarding url}/api/call` for the field labeled “A call comes in” as shown below:
+
+![https://res.cloudinary.com/brianiyoha/image/upload/v1584360184/Articles%20sample/Group_17.png](https://res.cloudinary.com/brianiyoha/image/upload/v1584360184/Articles%20sample/Group_17.png)
+
+## Testing
+
+Awesome! Now you have both your application running and exposed to the web, you can proceed to test your application. To do this, place a call to your Twilio phone number and you should be greeted with the steps included in the `handleIncomingCall()` method. You can either input `1` to test how your call gets redirected to a third party or `2` to get hear an inspirational message to get you through the day.
+
+## Conclusion
+
+At this point, you should have learned how to respond to incoming calls to your Twilio phone number. And with that, you have also learned how to route a call to the appropriate party using Twilio Voice in a Laravel application and also how to expose your local server using ngrok. If you will like to take a look at the complete source code for this tutorial, you can find it on [Github](https://github.com/thecodearcher/twilio-voice-routing).
+
+I’d love to answer any question(s) you might have concerning this tutorial. You can reach me via
+
+- Email: [brian.iyoha@gmail.com](mailto:brian.iyoha@gmail.com)
+- Twitter: [thecodearcher](https://twitter.com/thecodearcher)
+- GitHub: [thecodearcher](https://github.com/thecodearcher)
